@@ -1,0 +1,13 @@
+name = "xray-forge-worker"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Set your UUID as a secret (do NOT hardcode it):
+#   npx wrangler secret put UUID
+#
+# Deploy:
+#   npx wrangler deploy
+#
+# Your endpoint will be https://xray-forge-worker.<your-subdomain>.workers.dev
+# Client: VLESS / ws / TLS / port 443 / path "/" / host = that domain / uuid = your secret.

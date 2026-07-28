@@ -1,0 +1,32 @@
+{
+  "name": "xray-config-forge",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "bash runtimes/codespace/setup.sh",
+  "forwardPorts": [
+    8080,
+    8081,
+    8082,
+    9000
+  ],
+  "portsAttributes": {
+    "8080": {
+      "label": "vless-ws",
+      "onAutoForward": "silent"
+    },
+    "8081": {
+      "label": "trojan-ws",
+      "onAutoForward": "silent"
+    },
+    "8082": {
+      "label": "vless-xhttp",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "subscription",
+      "onAutoForward": "silent"
+    }
+  }
+}
