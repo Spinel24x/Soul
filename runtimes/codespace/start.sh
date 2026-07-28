@@ -43,7 +43,8 @@ done
 # Optional: serve the subscription file so a phone can import it by URL.
 if [ "$SERVE_SUB" = "1" ]; then
   pkill -f "http.server ${SUB_PORT}" 2>/dev/null || true
-  ( cd output && nohup python3 -m http.server "$SUB_PORT" > _run/sub.log 2>&1 & echo $! > _run/sub.pid )
+  nohup python3 -m http.server "$SUB_PORT" --directory output > output/_run/sub.log 2>&1 &
+  echo $! > output/_run/sub.pid
   if [ -n "${CODESPACE_NAME:-}" ]; then
     echo "[*] Subscription URL (import this in your app):"
     echo "    https://${CODESPACE_NAME}-${SUB_PORT}.${DOMAIN}/subscription.txt"
