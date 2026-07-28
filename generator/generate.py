@@ -103,8 +103,8 @@ def build_specs(args) -> list[dict]:
             raise SystemExit(f"bad protocol spec '{name}', expected e.g. vless-ws / trojan-ws / vless-xhttp")
         if proto not in ("vless", "trojan"):
             raise SystemExit(f"unsupported protocol '{proto}' in '{name}'")
-        if transport not in ("ws", "xhttp"):
-            raise SystemExit(f"unsupported transport '{transport}' in '{name}' (edge profile allows ws/xhttp)")
+        if transport not in ("ws", "xhttp", "httpupgrade"):
+            raise SystemExit(f"unsupported transport '{transport}' in '{name}' (edge profile allows ws/xhttp/httpupgrade)")
         cred = gen_uuid() if proto == "vless" else gen_password()
         specs.append({
             "name": name,
@@ -114,6 +114,7 @@ def build_specs(args) -> list[dict]:
             "path": rand_path(args.path_prefix),
             "cred": cred,
             "security": security,
+            "xhttp_mode": args.xhttp_mode,
         })
     return specs
 
@@ -127,7 +128,9 @@ def server_stream(spec: dict, reality_ctx: dict | None) -> dict:
     if t == "ws":
         stream["wsSettings"] = {"path": spec["path"]}
     elif t == "xhttp":
-        stream["xhttpSettings"] = {"path": spec["path"], "mode": "auto"}
+        stream["xhttpSettings"] = {"path": spec["path"], "mode": spec.get("xhttp_mode", "auto")}
+    elif t == "httpupgrade":
+        stream["httpupgradeSettings"] = {"path": spec["path"]}
     elif t == "tcp":
         stream["tcpSettings"] = {}
 
@@ -191,7 +194,9 @@ def client_stream(spec: dict, host: str, tls: bool, reality_ctx: dict | None) ->
     if t == "ws":
         stream["wsSettings"] = {"path": spec["path"], "host": host}
     elif t == "xhttp":
-        stream["xhttpSettings"] = {"path": spec["path"], "host": host, "mode": "auto"}
+        stream["xhttpSettings"] = {"path": spec["path"], "host": host, "mode": spec.get("xhttp_mode", "auto")}
+    elif t == "httpupgrade":
+        stream["httpupgradeSettings"] = {"path": spec["path"], "host": host}
     elif t == "tcp":
         stream["tcpSettings"] = {}
 
@@ -271,17 +276,17 @@ def share_link(spec: dict, host: str, port: int, tls: bool, reality_ctx: dict | 
         })
     elif tls:
         params.update({"security": "tls", "sni": host, "fp": "chrome"})
-        if spec["transport"] in ("ws", "xhttp"):
+        if spec["transport"] in ("ws", "xhttp", "httpupgrade"):
             params["host"] = host
     else:
         params["security"] = "none"
-        if spec["transport"] in ("ws", "xhttp"):
+        if spec["transport"] in ("ws", "xhttp", "httpupgrade"):
             params["host"] = host
 
-    if spec["transport"] in ("ws", "xhttp"):
+    if spec["transport"] in ("ws", "xhttp", "httpupgrade"):
         params["path"] = spec["path"]
     if spec["transport"] == "xhttp":
-        params["mode"] = "auto"
+        params["mode"] = spec.get("xhttp_mode", "auto")
 
     query = urlencode(params, quote_via=quote)
     scheme = "vless" if spec["protocol"] == "vless" else "trojan"
@@ -301,7 +306,9 @@ def parse_args(argv=None):
                    default=int(os.environ.get("FORGE_INTERNAL_PORT", "8080")),
                    help="first internal port xray listens on (increments per protocol)")
     p.add_argument("--protocols", default=os.environ.get("FORGE_PROTOCOLS", "vless-ws"),
-                   help="comma list: vless-ws,trojan-ws,vless-xhttp")
+                   help="comma list: vless-ws,trojan-ws,vless-xhttp,vless-httpupgrade")
+    p.add_argument("--xhttp-mode", default=os.environ.get("FORGE_XHTTP_MODE", "auto"),
+                   help="xhttp mode: auto | packet-up | stream-up (packet-up is best vs strict DPI, e.g. Iran)")
     p.add_argument("--path-prefix", default=os.environ.get("FORGE_PATH_PREFIX", "forge"))
     p.add_argument("--remark-prefix", default=os.environ.get("FORGE_REMARK", "forge"))
     tls = p.add_mutually_exclusive_group()
@@ -384,6 +391,7 @@ def main(argv=None) -> int:
             "name": s["name"], "protocol": s["protocol"], "transport": s["transport"],
             "internal_port": s["port"], "host": host, "public_port": pub_port, "edge_tls": tls,
             "path": s["path"], "security": s["security"], "cred": s["cred"], "remark": remark,
+            "xhttp_mode": s.get("xhttp_mode", "auto"),
         })
 
     (outdir / "share_links.txt").write_text("\n".join(links) + "\n")

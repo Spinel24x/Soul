@@ -40,6 +40,10 @@ for p in $PORTS; do
   fi
 done
 
+echo "[i] IMPORTANT: the tunnel port MUST be Public or clients get GitHub's auth wall"
+echo "    and nothing connects. If a check below says 'PORT NOT PUBLIC': open the PORTS"
+echo "    tab -> right-click the port -> Port Visibility -> Public (keep protocol = HTTP)."
+
 # Optional: serve the subscription file so a phone can import it by URL.
 if [ "$SERVE_SUB" = "1" ]; then
   pkill -f "http.server ${SUB_PORT}" 2>/dev/null || true

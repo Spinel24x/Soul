@@ -78,8 +78,7 @@ python3 generator/generate.py --host 127.0.0.1 --public-port 8080 \
 python3 generator/generate.py --host example.com --public-port 443 --protocols vless-ws
 ```
 
-پرچم‌های مهم: `--protocols` (مثل `vless-ws,trojan-ws,vless-xhttp`)، `--host`، `--public-port`،
-`--edge-tls/--no-edge-tls`، `--reality`، `--path-prefix`، `--codespace-name`.
+پرچم‌های مهم: `--protocols` (مثل `vless-ws,vless-xhttp,vless-httpupgrade,trojan-ws`)، `--xhttp-mode` (`auto`/`packet-up`/`stream-up`)، `--host`، `--public-port`، `--edge-tls/--no-edge-tls`، `--reality`، `--path-prefix`، `--codespace-name`.
 
 ---
 
@@ -112,7 +111,8 @@ wrangler deploy
 
 تونل عمومی Codespace از `https://<name>-<port>.app.github.dev` عبور می‌کند و **HTTP/HTTPS-محور** است؛ TLS در لبه‌ی خود گیت‌هاب terminate می‌شود. بنابراین:
 
-- ترنسپورت باید HTTP-محور باشد: **WebSocket** (مطمئن‌ترین) یا **XHTTP**.
+- ترنسپورت باید HTTP-محور باشد: **XHTTP**، **httpupgrade** یا **WebSocket**.
+- ترتیب پیشنهادی برای DPI ایران: **xhttp (حالت packet-up) → httpupgrade → websocket**. مثال: `--protocols vless-xhttp --xhttp-mode packet-up`. (WebSocket سازگارترین ولی قابل‌شناسایی‌ترین است.)
 - کلاینت به `...app.github.dev:443` با **TLS** وصل می‌شود؛ `sni` و `host` = همان زیردامنه.
 - Xray داخل کانتینر روی پورت داخلی (مثل 8080) **بدون TLS** گوش می‌دهد.
 - **REALITY و TCP خام روی Codespace کار نمی‌کند** (به کنترل مستقیم TLS/TCP نیاز دارد) — آن را برای VPS نگه دار.
@@ -131,11 +131,21 @@ wrangler deploy
 
 ---
 
-## عیب‌یابی
+## عیب‌یابی — «کانفیگ ساخته می‌شود ولی وصل نمی‌شود»
 
-- `FAIL` در health check → لاگ: `output/_run/xray.log` و `output/_healthcheck/*.log`.
-- ریموت FAIL ولی لوکال PASS → پورت هنوز public نشده، یا Codespace خاموش/ری‌استارت شده.
-- کندی → WebSocket را به‌جای XHTTP امتحان کن؛ روی VPS از REALITY استفاده کن.
-- هیچ‌وقت `output/` واقعی (UUID/پسورد/کلید) را commit نکن (در `.gitignore` هست).
+۱) **مهم‌ترین علت: پورت Public نیست.** روی Codespaces پورت به‌صورت پیش‌فرض private است و اتصال کلاینت (v2rayNG) پشتِ دیوار احراز هویت گیت‌هاب رد می‌شود — با اینکه health check لوکال PASS است. حلش:
+   - تب **PORTS** → روی پورت (مثلاً 8080) راست‌کلیک → **Port Visibility → Public**.
+   - پروتکل پورت باید **HTTP** باشد نه HTTPS (اگر HTTPS کنی دوباره private می‌شود).
+   - تأیید: `python3 healthcheck/check.py --mode remote` — اگر بگوید «PORT NOT PUBLIC» یعنی هنوز private است.
+
+۲) **لینک خام در v2rayNG وارد نمی‌شود؟** لینک تونل خیلی طولانی است و موقع کپی از ترمینال می‌شکند. به‌جای paste، از **subscription** استفاده کن (همان که برایت کار کرد) یا QR. لینک موبایل: `https://<CODESPACE_NAME>-9000.app.github.dev/subscription.txt`.
+
+۳) **وصل می‌شود ولی کند است؟** در کلاینت **Mux** را با concurrency=8 روشن کن، یا ترنسپورت را عوض کن.
+
+۴) **ترنسپورت فیلتر شده (ایران)؟** ترتیب امتحان: `vless-xhttp --xhttp-mode packet-up` → `vless-httpupgrade` → `vless-ws`.
+
+۵) لاگ‌ها: `output/_run/xray.log` و `output/_healthcheck/*.log`.
+
+۶) هیچ‌وقت `output/` واقعی (UUID/پسورد/کلید) را commit نکن (در `.gitignore` هست).
 
 نسخه‌ی تست‌شده‌ی Xray-core: **v26.3.27**.

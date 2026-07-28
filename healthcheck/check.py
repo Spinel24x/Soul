@@ -58,7 +58,31 @@ def spec_from_endpoint(ep: dict, *, local: bool) -> dict:
         "path": ep.get("path", ""),
         "cred": ep["cred"],
         "security": "none" if local else ep["security"],
+        "xhttp_mode": ep.get("xhttp_mode", "auto"),
     }
+
+
+def http_probe(host: str) -> tuple[str, str]:
+    """Plain HTTPS GET to the tunnel root. Used to tell 'port is private' (GitHub
+    auth wall) apart from 'reached the app'. Returns (http_code, redirect_url)."""
+    try:
+        r = subprocess.run(
+            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{redirect_url}",
+             "--max-time", "15", f"https://{host}/"],
+            capture_output=True, text=True, timeout=20,
+        )
+        code, _, redir = r.stdout.strip().partition(" ")
+        return code.strip(), redir.strip()
+    except subprocess.TimeoutExpired:
+        return "000", ""
+
+
+def classify_probe(code: str, redir: str) -> str:
+    if code in ("", "000"):
+        return "unreachable"      # codespace stopped / wrong host / DNS
+    if code in ("301", "302", "401", "403") or "github" in (redir or "").lower():
+        return "private"          # GitHub auth wall -> port is NOT public
+    return "public"               # reached the edge/app (xray may answer 400/404 to a plain GET)
 
 
 def reality_ctx_from_summary(summary: dict) -> dict | None:
@@ -146,6 +170,20 @@ def run(argv=None) -> int:
             host = "127.0.0.1" if local else ep.get("host", summary["host"])
             port = ep["internal_port"] if local else ep.get("public_port", summary["public_port"])
             tls = False if local else ep.get("edge_tls", summary["edge_tls"])
+
+            # Remote pre-check: is the tunnel port actually public & reachable?
+            if not local:
+                code, redir = http_probe(host)
+                cls = classify_probe(code, redir)
+                if cls == "private":
+                    results.append((ep["name"], ep["protocol"], ep["transport"], False,
+                                    f"PORT NOT PUBLIC - GitHub auth wall (HTTP {code}). "
+                                    f"Set port {ep['internal_port']} to Public in the PORTS tab."))
+                    continue
+                if cls == "unreachable":
+                    results.append((ep["name"], ep["protocol"], ep["transport"], False,
+                                    f"UNREACHABLE (HTTP {code or '000'}) - codespace stopped or wrong host."))
+                    continue
             client_cfg = generate.build_client_config(
                 spec, host, port, tls, reality_ctx, socks_port=socks_port, http_port=None)
             cfg_path = tmp / f"client_{ep['name']}.json"
