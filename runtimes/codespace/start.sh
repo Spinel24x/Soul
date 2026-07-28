@@ -4,15 +4,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-PROTOCOLS="${PROTOCOLS:-vless-ws}"     # e.g. "vless-ws,trojan-ws" ; ws is most reliable through the GitHub edge
+PROTOCOLS="${PROTOCOLS:-vless-ws}"     # e.g. "vless-xhttp,vless-httpupgrade,vless-ws,trojan-ws"
+XHTTP_MODE="${XHTTP_MODE:-auto}"       # auto | packet-up | stream-up ; packet-up is best vs strict DPI (Iran)
 SERVE_SUB="${SERVE_SUB:-1}"            # 1 = also serve subscription.txt over HTTP for easy phone import
 SUB_PORT="${SUB_PORT:-9000}"
 DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 
 mkdir -p output/_run
 
-echo "[*] Generating configs (protocols: $PROTOCOLS)"
-python3 generator/generate.py --protocols "$PROTOCOLS"
+echo "[*] Generating configs (protocols: $PROTOCOLS, xhttp-mode: $XHTTP_MODE)"
+python3 generator/generate.py --protocols "$PROTOCOLS" --xhttp-mode "$XHTTP_MODE"
 
 echo "[*] (Re)starting Xray"
 pkill -f "bin/xray run" 2>/dev/null || true
