@@ -1,0 +1,11 @@
+# binaries & data
+bin/xray
+bin/*.dat
+*.zip
+
+# generated configs & secrets (never commit real UUIDs/passwords/keys)
+output/*
+!output/.gitkeep
+
+# local env
+.env
